@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AR Athlete Markers</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ar.js/2.2.2/ar.min.js"></script>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+        }
+        #allowCamera {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #arScene {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 5px solid #007bff;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <button id="allowCamera">Start Camera</button>
+    <div id="arScene"></div>
+
+    <script>
+        const allowCameraBtn = document.getElementById('allowCamera');
+        const arScene = document.getElementById('arScene');
+
+        // AR Configuration
+        const markers = [
+            { patt: 'trigger-1.patt', model: 'pattern-1.png', athlete: 'athlete-1.glb' },
+            { patt: 'trigger-2.patt', model: 'pattern-2.png', athlete: 'athlete-2.glb' },
+            { patt: 'trigger-3.patt', model: 'pattern-3.png', athlete: 'athlete-3.glb' },
+            { patt: 'trigger-4.patt', model: 'pattern-4.png', athlete: 'athlete-4.glb' },
+            { patt: 'trigger-5.patt', model: 'pattern-5.png', athlete: 'athlete-5.glb' },
+            { patt: 'trigger-6.patt', model: 'pattern-6.png', athlete: 'athlete-6.glb' }
+        ];
+
+        allowCameraBtn.addEventListener('click', async () => {
+            try {
+                // Request camera permission
+                await navigator.mediaDevices.getUserMedia({ video: true });
+                
+                // Hide button and show AR scene
+                allowCameraBtn.style.display = 'none';
+                arScene.style.display = 'block';
+
+                // Initialize AR scene
+                const scene = new THREE.Scene();
+                const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                arScene.appendChild(renderer.domElement);
+
+                // AR Marker Setup
+                const arToolkitSource = new THREEx.ArToolkitSource({ sourceType: 'webcam' });
+                const arToolkitContext = new THREEx.ArToolkitContext({
+                    cameraParametersUrl: 'camera_para.dat',
+                    detectionMode: 'mono'
+                });
+
+                arToolkitSource.init(() => {
+                    arToolkitSource.onResize();
+                });
+
+                arToolkitContext.init(() => {
+                    camera.projectionMatrix.copy(arToolkitContext.getProjectionMatrix());
+                });
+
+                // Create markers and load models
+                markers.forEach((markerInfo, index) => {
+                    const markerRoot = new THREE.Group();
+                    const markerControls = new THREEx.ArMarkerControls(arToolkitContext, markerRoot, {
+                        type: 'pattern',
+                        patternUrl: markerInfo.patt
+                    });
+
+                    // Load PNG overlay
+                    const textureLoader = new THREE.TextureLoader();
+                    textureLoader.load(markerInfo.model, (texture) => {
+                        const overlayGeometry = new THREE.PlaneGeometry(1, 1);
+                        const overlayMaterial = new THREE.MeshBasicMaterial({ 
+                            map: texture, 
+                            transparent: true 
+                        });
+                        const overlayMesh = new THREE.Mesh(overlayGeometry, overlayMaterial);
+                        overlayMesh.rotation.x = -Math.PI / 2;
+                        markerRoot.add(overlayMesh);
+                    });
+
+                    // Load GLB model
+                    const gltfLoader = new THREE.GLTFLoader();
+                    gltfLoader.load(markerInfo.athlete, (gltf) => {
+                        const model = gltf.scene;
+                        model.scale.set(0.5, 0.5, 0.5);
+                        model.position.y = 0.5;
+                        markerRoot.add(model);
+                    });
+
+                    scene.add(markerRoot);
+                });
+
+                // Rendering loop
+                function animate() {
+                    requestAnimationFrame(animate);
+                    renderer.render(scene, camera);
+                    arToolkitContext.update(arToolkitSource.domElement);
+                }
+                animate();
+
+                // Handle window resizing
+                window.addEventListener('resize', () => {
+                    arToolkitSource.onResize();
+                    renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+
+            } catch (error) {
+                alert('Camera access denied. Please allow camera permissions.');
+            }
+        });
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ar.js/2.2.2/ar.js"></script>
+</body>
+</html>
